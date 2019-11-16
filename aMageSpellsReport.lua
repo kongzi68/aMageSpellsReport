@@ -1,11 +1,11 @@
-local addonName, globFunc = ... -- 跨 lua 文件调用函数
+local aMageSpellsReport, globFunc = ... -- 跨 lua 文件调用函数
 globFunc.core = {}
-
 local playerGUID = UnitGUID("player")
 local playerName = UnitName("player")
 local enemyGuidList = {}
 local checkSpellName = "变形术"
 local gIcon = nil
+-- local MSR_DB = globFunc.variable.MSR_DB
 
 -- 消息发送到设定的 channel
 local function newSendChatMessage(msg)
@@ -41,18 +41,22 @@ f:SetScript(
 )
 
 function f:OnEvent(event, ...)
-    -- if (event == "PLAYER_REGEN_ENABLED" or event == "DUEL_FINISHED") and MSR_DB.opt_mage_mana_waring then
+    -- if (event == "PLAYER_REGEN_ENABLED" or event == "DUEL_FINISHED") and MSR_DB.opt_mageManaWaring then
     if event == "PLAYER_REGEN_ENABLED" then
         -- 战斗结束后，重置变量
         enemyGuidList = {}
         gIcon = nil
-        --法力低于 15% 报警
-        if MSR_DB.opt_mage_mana_waring then
-            self:mageManaWaringReport()
-        end
-        -- 战斗结束后，自动摧毁背包内的低价值物品
-        if MSR_DB.opt_auto_delete_junk then
-            globFunc.core.deleteBagItem()
+        local isDead = UnitIsDead("player")
+        -- Returns 1 if "unit" is dead, nil otherwise.
+        if not isDead then
+            --法力低于 15% 报警
+            if MSR_DB.opt_mageManaWaring then
+                self:mageManaWaringReport()
+            end
+            -- 战斗结束后，自动摧毁背包内的低价值物品
+            if MSR_DB.opt_autoDeleteJunk then
+                globFunc.core.deleteBagItem()
+            end
         end
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local _, subevent, _, sourceGUID, sourceName, _, _, destGUID, destName, _, _, _, spellName = ...
@@ -60,7 +64,7 @@ function f:OnEvent(event, ...)
         if subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_AURA_REFRESH" then
             -- print("test: " .. enemyGuidList[destGUID]["sourceGUID"])
             self:mageSpellPolymorph(subevent, sourceGUID, sourceName, destGUID, destName, spellName)
-        elseif subevent == "SPELL_CAST_START" and sourceGUID == playerGUID and MSR_DB.opt_advance_marker then
+        elseif subevent == "SPELL_CAST_START" and sourceGUID == playerGUID and MSR_DB.opt_advanceMarker then
             if spellName == checkSpellName then
                 -- 预读条标记目标
                 gIcon = self:targetMark()
@@ -73,7 +77,7 @@ function f:OnEvent(event, ...)
                     enemyGuidList[destGUID]["icon"] = gIcon
                 end
             end
-        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spell_aura_broken then
+        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spellAuraBroken then
             dSpellName, _, _, sSpellName = select(13, ...)
             self:mageSpellPolymorphBroken(sourceName, destGUID, destName, sSpellName, dSpellName)
         elseif subevent == "SPELL_INTERRUPT" then
@@ -102,7 +106,7 @@ function f:mageSpellPolymorph(subevent, ...)
     local sourceGUID, sourceName, destGUID, destName, spellName = ...
     if sourceGUID == playerGUID and destName ~= nil and spellName == checkSpellName then
         -- 未开启预读条标记目标时执行
-        if not MSR_DB.opt_advance_marker then
+        if not MSR_DB.opt_advanceMarker then
             gIcon = self:targetMark()
             enemyGuidList[destGUID]["icon"] = gIcon
         end
@@ -144,19 +148,18 @@ end
 -- 法力值低于 15% 发送消息
 function f:mageManaWaringReport()
     local pType, powertype = UnitPowerType("player") --获取自身能量类型
-    local isDead = UnitIsDead("player") --Returns 1 if "unit" is dead, nil otherwise.
     local power, maxpower = UnitPower("player", pType), UnitPowerMax("player", pType) --获取自身能量及最大能量
     if powertype == "MANA" then
         perh = power / maxpower * 100 + 0.5 --计算MP百分比
         -- print(perh);
-        if perh <= 15 and not isDead then
+        if perh <= 15 then
             newSendChatMessage("警告：法力值低于15%，需要恢复！！！")
         end
     end
 end
 
 -- 检查玩家是否具有标记权限
-function f:RaidMarkCanMark()
+function f:raidMarkCanMark()
     if IsInRaid() then
         if UnitIsGroupLeader("player") or UnitIsGroupAssistant("player") then
             return true
@@ -176,7 +179,7 @@ function f:targetMark()
         当目标未被标记过，标记目标，且消息通报带设定的标记
     ]]
     local icon = GetRaidTargetIndex("target")
-    local isRaidMarkCanMark = self:RaidMarkCanMark()
+    local isRaidMarkCanMark = self:raidMarkCanMark()
     local t_icon = MSR_DB.opt_marker
     if icon and icon ~= t_icon then
         t_icon = icon
@@ -210,9 +213,9 @@ end
 local function isEligibleItem(itemID)
     -- 限制条件：1、开启可摧毁功能，2、售卖NPC单价低于限制值，3、物品品质低于优秀
     local _, _, itemRarity, _, _, _, _, _, _, _, itemSellPrice = GetItemInfo(itemID)
-    if MSR_DB.opt_delete_junk and itemSellPrice <= MSR_DB.opt_itemSellPrice then
+    if MSR_DB.opt_deleteJunk and itemSellPrice <= MSR_DB.opt_itemDeletePrice then
         if itemRarity == 1 then
-            local tempItemList = MSR_DB.opt_delete_item_list
+            local tempItemList = MSR_DB.opt_deleteItemList
             if tempItemList == {} then
                 return false
             end
@@ -262,13 +265,13 @@ local function deleteBagItem()
     local allValue, oneValue = 0
     local canDeleteItemArray = getBagCanDeleteItem()
     if next(canDeleteItemArray) ~= nil then
-        SendChatMessage("当前被摧毁物品的最高价值限制为：" .. convertGoldValue(MSR_DB.opt_itemSellPrice), "say")
+        SendChatMessage("当前被摧毁物品的最高价值限制为：" .. convertGoldValue(MSR_DB.opt_itemDeletePrice), "say")
         SendChatMessage("开始摧毁低价值物品！", "say")
         for _, value in pairs(canDeleteItemArray) do
             local bagID, slot, itemCount, itemLink, price = unpack(value)
             local locked, quality = select(3, GetContainerItemInfo(bagID, slot))
             -- 再次验证物品等级与价格
-            if not locked and quality <= 1 and price <= MSR_DB.opt_itemSellPrice then
+            if not locked and quality <= 1 and price <= MSR_DB.opt_itemDeletePrice then
                 PickupContainerItem(bagID, slot)
                 DeleteCursorItem()
                 -- ClearCursor()
@@ -280,7 +283,7 @@ local function deleteBagItem()
         SendChatMessage("摧毁低价值物品结束...", "say")
         SendChatMessage("本次摧毁低价值物品的总价值: " .. convertGoldValue(allValue), "say")
     else
-        if not MSR_DB.opt_auto_delete_junk then
+        if not MSR_DB.opt_autoDeleteJunk then
             SendChatMessage("没有需要被摧毁的垃圾物品！", "say")
         end
     end

@@ -1,40 +1,9 @@
-local addonName, globFunc = ... -- 跨 lua 文件调用函数
+local aMageSpellsReport, globFunc = ... -- 跨 lua 文件调用函数
 local sellPriceValue = 500 -- 设置摧毁灰色物品价值最大值为：500铜
 local tempItemListText = nil
-local Defaults = {
-    opt_channel = {
-        opt_say = true,
-        opt_yell = false,
-        opt_party = false,
-        opt_raid = false
-    },
-    opt_marker = 1,
-    opt_itemSellPrice = 5,
-    opt_spell_aura_broken = false,
-    opt_mage_mana_waring = false,
-    opt_advance_marker = false,
-    opt_delete_junk = false,
-    opt_auto_delete_junk = false,
-    opt_delete_item_list = {}
-}
-
-local opt_marker_enum = {
-    [0] = "取消图标",
-    [1] = "星星",
-    [2] = "大饼",
-    [3] = "菱形",
-    [4] = "倒三角",
-    [5] = "月亮",
-    [6] = "方块",
-    [7] = "叉X",
-    [8] = "骷髅"
-}
-
-MSR_DB = Defaults
-
--- print(MSR_DB.opt_channel.opt_say);
--- print(MSR_DB.opt_marker);
-
+local optMarkerEnum = globFunc.variable.optMarkerEnum
+local Defaults = globFunc.variable.Defaults
+-- local MSR_DB = globFunc.variable.MSR_DB
 local function tooltipOfPanel_OnEnter(self)
     GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
     GameTooltip:SetText(self.Name)
@@ -177,14 +146,16 @@ end
 -- 处理物品ID数组
 local function itemIDArrayToStr(tabName)
     local showText = ""
-    for key, value in pairs(tabName) do
-        local signal = ";"
-        if key == 1 then
-            signal = ""
-        end
-        local itemResult = getItemInfoByName(value, true)
-        if itemResult then
-            showText = showText .. signal .. tableToString(itemResult)
+    if next(tabName) ~= nil then
+        for key, value in pairs(tabName) do
+            local signal = ";"
+            if key == 1 then
+                signal = ""
+            end
+            local itemResult = getItemInfoByName(value, true)
+            if itemResult then
+                showText = showText .. signal .. tableToString(itemResult)
+            end
         end
     end
     return showText
@@ -314,8 +285,8 @@ pFrame:SetScript(
         dropDownTitle:SetPoint("TOPLEFT", 10, -130)
         dropDownTitle:SetText("选择标记类型：")
 
-        local selectedValue = opt_marker_enum[MSR_DB.opt_marker]
-        local valueTable = opt_marker_enum
+        local selectedValue = optMarkerEnum[MSR_DB.opt_marker]
+        local valueTable = optMarkerEnum
         local optMarkerDropDown = CreateFrame("Frame", "WPDemoDropDown", pFrame, "UIDropDownMenuTemplate")
         -- optMarkerDropDown:SetPoint("LEFT", dropDownTitle, 110, 0);
         optMarkerDropDown:SetPoint("LEFT", dropDownTitle, dropDownTitle:GetStringWidth(), 0)
@@ -364,9 +335,9 @@ pFrame:SetScript(
             function(self, value)
                 local isChecked = optSpellAuraBrokenCheckButton:GetChecked()
                 if isChecked then
-                    MSR_DB.opt_spell_aura_broken = true
+                    MSR_DB.opt_spellAuraBroken = true
                 else
-                    MSR_DB.opt_spell_aura_broken = false
+                    MSR_DB.opt_spellAuraBroken = false
                 end
             end
         )
@@ -381,9 +352,9 @@ pFrame:SetScript(
             function(self, value)
                 local isChecked = optCheckButton1:GetChecked()
                 if isChecked then
-                    MSR_DB.opt_mage_mana_waring = true
+                    MSR_DB.opt_mageManaWaring = true
                 else
-                    MSR_DB.opt_mage_mana_waring = false
+                    MSR_DB.opt_mageManaWaring = false
                 end
             end
         )
@@ -398,9 +369,9 @@ pFrame:SetScript(
             function(self, value)
                 local isChecked = optCheckButton2:GetChecked()
                 if isChecked then
-                    MSR_DB.opt_advance_marker = true
+                    MSR_DB.opt_advanceMarker = true
                 else
-                    MSR_DB.opt_advance_marker = false
+                    MSR_DB.opt_advanceMarker = false
                 end
             end
         )
@@ -416,9 +387,9 @@ pFrame:SetScript(
             function()
                 local isChecked = optCheckButton3:GetChecked()
                 if isChecked then
-                    MSR_DB.opt_delete_junk = true
+                    MSR_DB.opt_deleteJunk = true
                 else
-                    MSR_DB.opt_delete_junk = false
+                    MSR_DB.opt_deleteJunk = false
                 end
             end
         )
@@ -426,80 +397,81 @@ pFrame:SetScript(
         --[[
             清理低价值灰色物品
         ]]
-        local itemSellButtonTitle = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-        itemSellButtonTitle:SetPoint("TOPLEFT", 10, -270)
-        itemSellButtonTitle:SetText("设置被清理的物品售卖NPC价格最大值(单位：铜)：")
+        local itemDelPriceButtonTitle = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        itemDelPriceButtonTitle:SetPoint("TOPLEFT", 10, -270)
+        itemDelPriceButtonTitle:SetText("设置被清理的物品售卖NPC价格最大值(单位：铜)：")
 
         -- 输入框
-        local itemSellEditBox = CreateFrame("EditBox", nil, pFrame, "InputBoxTemplate")
-        local itemSellEditBoxXPoint = 10
-        itemSellEditBox:SetPoint("BOTTOMLEFT", itemSellButtonTitle, itemSellEditBoxXPoint, -30)
-        itemSellEditBox:SetSize(120, 24)
-        itemSellEditBox:SetMultiLine(false)
-        itemSellEditBox:SetAutoFocus(false) -- dont automatically focus
-        itemSellEditBox:SetFontObject("GameFontWhite")
-        itemSellEditBox:SetJustifyH("CENTER")
-        itemSellEditBox:SetNumeric()
-        itemSellEditBox:SetNumber(MSR_DB.opt_itemSellPrice)
-        itemSellEditBox.Name = "注意事项："
-        itemSellEditBox.Description = "可设置的最大值为 500，即 5 银币!\n当输入无效值时，会自动设置为0；\n点击重置按钮，会设置为5铜。"
-        itemSellEditBox:SetScript("OnEnter", tooltipOfPanel_OnEnter)
-        itemSellEditBox:SetScript("OnLeave", GameTooltip_Hide)
-        itemSellEditBox:SetScript(
+        local itemDeleteEditBox = CreateFrame("EditBox", nil, pFrame, "InputBoxTemplate")
+        local itemDeleteEditBoxXPoint = 10
+        itemDeleteEditBox:SetPoint("BOTTOMLEFT", itemDelPriceButtonTitle, itemDeleteEditBoxXPoint, -30)
+        itemDeleteEditBox:SetSize(120, 24)
+        itemDeleteEditBox:SetMultiLine(false)
+        itemDeleteEditBox:SetAutoFocus(false) -- dont automatically focus
+        itemDeleteEditBox:SetFontObject("GameFontWhite")
+        itemDeleteEditBox:SetJustifyH("CENTER")
+        itemDeleteEditBox:SetNumeric()
+        itemDeleteEditBox:SetNumber(MSR_DB.opt_itemDeletePrice)
+        itemDeleteEditBox.Name = "注意事项："
+        itemDeleteEditBox.Description = "可设置的最大值为 500，即 5 银币!\n当输入无效值时，会自动设置为0；\n点击重置按钮，会设置为5铜。"
+        itemDeleteEditBox:SetScript("OnEnter", tooltipOfPanel_OnEnter)
+        itemDeleteEditBox:SetScript("OnLeave", GameTooltip_Hide)
+        itemDeleteEditBox:SetScript(
             "OnTextChanged",
             function()
-                local sellPrice = itemSellEditBox:GetNumber()
+                local sellPrice = itemDeleteEditBox:GetNumber()
                 if sellPrice >= sellPriceValue or sellPrice < 0 then
                     message("警告：你设置的物品单价无效，请重新设置！")
-                    itemSellEditBox:SetNumber(Defaults.opt_itemSellPrice)
-                    itemSellEditBox:SetAutoFocus()
+                    itemDeleteEditBox:SetNumber(Defaults.opt_itemDeletePrice)
+                    itemDeleteEditBox:SetAutoFocus()
                 else
-                    MSR_DB.opt_itemSellPrice = sellPrice
+                    MSR_DB.opt_itemDeletePrice = sellPrice
                 end
             end
         )
 
         -- 输入框的应用按钮
-        local itemSellPriceOkButton =
-            CreateFrame("Button", "itemSellPriceOkButton_GlobalName", pFrame, "UIPanelButtonTemplate")
-        local itemSellPriceOkButtonXPoint = itemSellEditBoxXPoint + 120
-        itemSellPriceOkButton:SetPoint("LEFT", itemSellEditBox, itemSellPriceOkButtonXPoint, 0)
-        itemSellPriceOkButton:SetSize(50, 24) -- width, height
-        itemSellPriceOkButton:SetText("应用")
-        itemSellPriceOkButton:SetScript(
+        local itemDeletePriceOkButton =
+            CreateFrame("Button", "itemDeletePriceOkButton_GlobalName", pFrame, "UIPanelButtonTemplate")
+        local itemDeletePriceOkButtonXPoint = itemDeleteEditBoxXPoint + 120
+        itemDeletePriceOkButton:SetPoint("LEFT", itemDeleteEditBox, itemDeletePriceOkButtonXPoint, 0)
+        itemDeletePriceOkButton:SetSize(50, 24) -- width, height
+        itemDeletePriceOkButton:SetText("应用")
+        itemDeletePriceOkButton:SetScript(
             "OnClick",
             function()
-                itemSellEditBox:SetNumber(MSR_DB.opt_itemSellPrice)
+                itemDeleteEditBox:SetNumber(MSR_DB.opt_itemDeletePrice)
                 SendChatMessage(
-                    "限制需要被摧毁的物品售卖NPC最大价格值为：" .. globFunc.core.convertGoldValue(MSR_DB.opt_itemSellPrice),
+                    "限制需要被摧毁的物品售卖NPC最大价格值为：" .. globFunc.core.convertGoldValue(MSR_DB.opt_itemDeletePrice),
                     "say"
                 )
             end
         )
 
         -- 输入框的重置按钮
-        local itemSellPriceCancelButton =
-            CreateFrame("Button", "itemSellPriceCancelButton_GlobalName", pFrame, "UIPanelButtonTemplate")
-        itemSellPriceCancelButton:SetPoint("LEFT", itemSellEditBox, itemSellPriceOkButtonXPoint + 60, 0)
-        itemSellPriceCancelButton:SetSize(50, 24) -- width, height
-        itemSellPriceCancelButton:SetText("重置")
-        itemSellPriceCancelButton:SetScript(
+        local itemDeletePriceCancelButton =
+            CreateFrame("Button", "itemDeletePriceCancelButton_GlobalName", pFrame, "UIPanelButtonTemplate")
+        itemDeletePriceCancelButton:SetPoint("LEFT", itemDeleteEditBox, itemDeletePriceOkButtonXPoint + 60, 0)
+        itemDeletePriceCancelButton:SetSize(50, 24) -- width, height
+        itemDeletePriceCancelButton:SetText("重置")
+        itemDeletePriceCancelButton:SetScript(
             "OnClick",
             function()
-                itemSellEditBox:SetNumber(Defaults.opt_itemSellPrice)
-                SendChatMessage("已经重置限制值为默认值：" .. globFunc.core.convertGoldValue(Defaults.opt_itemSellPrice), "say")
+                itemDeleteEditBox:SetNumber(Defaults.opt_itemDeletePrice)
+                SendChatMessage("已经重置限制值为默认值：" .. globFunc.core.convertGoldValue(Defaults.opt_itemDeletePrice), "say")
             end
         )
 
         -- 清理低价值灰色物品
-        local myButton = CreateFrame("Button", "myButton_GlobalName", pFrame, "UIPanelButtonTemplate")
-        myButton:SetPoint("LEFT", itemSellEditBox, itemSellPriceOkButtonXPoint + 120, 0)
-        myButton:SetSize(100, 24) -- width, height
-        myButton:SetText("手动清理")
-        myButton:SetScript(
+        local lowPriceItemDeleteButton =
+            CreateFrame("Button", "lowPriceItemDeleteButton_GlobalName", pFrame, "UIPanelButtonTemplate")
+        lowPriceItemDeleteButton:SetPoint("LEFT", itemDeleteEditBox, itemDeletePriceOkButtonXPoint + 120, 0)
+        lowPriceItemDeleteButton:SetSize(100, 24) -- width, height
+        lowPriceItemDeleteButton:SetText("手动清理")
+        lowPriceItemDeleteButton:SetScript(
             "OnClick",
             function()
-                if MSR_DB.opt_delete_junk then
+                if MSR_DB.opt_deleteJunk then
                     globFunc.core.deleteBagItem() -- 跨 lua 文件调用函数
                 else
                     message("未开启摧毁低价值物品功能!")
@@ -510,7 +482,7 @@ pFrame:SetScript(
         -- 开启是否自动摧毁低价值物品
         local optCheckButton4 =
             CreateFrame("CheckButton", "optCheckButton4_GlobalName", pFrame, "ChatConfigSmallCheckButtonTemplate")
-        optCheckButton4:SetPoint("LEFT", itemSellEditBox, itemSellPriceOkButtonXPoint + 120 + 110, 0)
+        optCheckButton4:SetPoint("LEFT", itemDeleteEditBox, itemDeletePriceOkButtonXPoint + 120 + 110, 0)
         _G[optCheckButton4:GetName() .. "Text"]:SetText("自动摧毁开关")
         optCheckButton4.tooltip = "若勾选：将自动摧毁背包内的低价值物品"
         optCheckButton4:SetScript(
@@ -518,9 +490,9 @@ pFrame:SetScript(
             function()
                 local isChecked = optCheckButton4:GetChecked()
                 if isChecked then
-                    MSR_DB.opt_auto_delete_junk = true
+                    MSR_DB.opt_autoDeleteJunk = true
                 else
-                    MSR_DB.opt_auto_delete_junk = false
+                    MSR_DB.opt_autoDeleteJunk = false
                 end
             end
         )
@@ -534,13 +506,13 @@ pFrame:SetScript(
             optYellCheckButton:SetChecked(MSR_DB.opt_channel.opt_yell)
             optPartyCheckButton:SetChecked(MSR_DB.opt_channel.opt_party)
             optRaidCheckButton:SetChecked(MSR_DB.opt_channel.opt_raid)
-            optSpellAuraBrokenCheckButton:SetChecked(MSR_DB.opt_spell_aura_broken)
-            optCheckButton1:SetChecked(MSR_DB.opt_mage_mana_waring)
-            optCheckButton2:SetChecked(MSR_DB.opt_advance_marker)
-            optCheckButton3:SetChecked(MSR_DB.opt_delete_junk)
-            optCheckButton4:SetChecked(MSR_DB.opt_auto_delete_junk)
-            itemSellEditBox:SetNumber(MSR_DB.opt_itemSellPrice)
-            fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_delete_item_list))
+            optSpellAuraBrokenCheckButton:SetChecked(MSR_DB.opt_spellAuraBroken)
+            optCheckButton1:SetChecked(MSR_DB.opt_mageManaWaring)
+            optCheckButton2:SetChecked(MSR_DB.opt_advanceMarker)
+            optCheckButton3:SetChecked(MSR_DB.opt_deleteJunk)
+            optCheckButton4:SetChecked(MSR_DB.opt_autoDeleteJunk)
+            itemDeleteEditBox:SetNumber(MSR_DB.opt_itemDeletePrice)
+            fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_deleteItemList))
         end
         pFrame:SetScript("OnShow", Refresh)
         Refresh()
@@ -563,25 +535,25 @@ local backdrop = {
     }
 }
 
-local itemSellButtonTitle2 = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-itemSellButtonTitle2:SetPoint("TOPLEFT", 10, -325)
-itemSellButtonTitle2:SetText("将需要被摧毁的物品ID添加到下面的清单中：")
+local itemDelPriceButtonTitle2 = pFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+itemDelPriceButtonTitle2:SetPoint("TOPLEFT", 10, -325)
+itemDelPriceButtonTitle2:SetText("将需要被摧毁的物品ID添加到下面的清单中：")
 -- 输入框
-local itemSellEditBox2 = CreateFrame("EditBox", nil, pFrame, "InputBoxTemplate")
-local itemSellEditBoxXPoint2 = 10
-itemSellEditBox2:SetPoint("BOTTOMLEFT", itemSellButtonTitle2, itemSellEditBoxXPoint2, -30)
-itemSellEditBox2:SetSize(120, 24)
-itemSellEditBox2:SetMultiLine(false)
-itemSellEditBox2:SetAutoFocus(false) -- dont automatically focus
-itemSellEditBox2:SetFontObject("GameFontWhite")
-itemSellEditBox2.Name = "注意事项："
-itemSellEditBox2.Description = "可输入物品ID或名称，用逗号分隔"
-itemSellEditBox2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
-itemSellEditBox2:SetScript("OnLeave", GameTooltip_Hide)
-itemSellEditBox2:SetScript(
+local itemDeleteEditBox2 = CreateFrame("EditBox", nil, pFrame, "InputBoxTemplate")
+local itemDeleteEditBoxXPoint2 = 10
+itemDeleteEditBox2:SetPoint("BOTTOMLEFT", itemDelPriceButtonTitle2, itemDeleteEditBoxXPoint2, -30)
+itemDeleteEditBox2:SetSize(120, 24)
+itemDeleteEditBox2:SetMultiLine(false)
+itemDeleteEditBox2:SetAutoFocus(false) -- dont automatically focus
+itemDeleteEditBox2:SetFontObject("GameFontWhite")
+itemDeleteEditBox2.Name = "注意事项："
+itemDeleteEditBox2.Description = "可输入物品ID或名称，用逗号分隔"
+itemDeleteEditBox2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
+itemDeleteEditBox2:SetScript("OnLeave", GameTooltip_Hide)
+itemDeleteEditBox2:SetScript(
     "OnTextChanged",
     function()
-        local box2Text = itemSellEditBox2:GetText()
+        local box2Text = itemDeleteEditBox2:GetText()
         if box2Text then
             tempItemListText = box2Text
         end
@@ -590,7 +562,7 @@ itemSellEditBox2:SetScript(
 
 fScrollEdit = CreateFrame("Frame", "MyScrollMessageTextFrame", pFrame)
 fScrollEdit:SetSize(300, 150)
-fScrollEdit:SetPoint("BOTTOMLEFT", itemSellButtonTitle2, 0, -185)
+fScrollEdit:SetPoint("BOTTOMLEFT", itemDelPriceButtonTitle2, 0, -185)
 fScrollEdit:SetFrameStrata("BACKGROUND")
 fScrollEdit:SetBackdrop(backdrop)
 fScrollEdit:SetBackdropColor(0, 0, 0)
@@ -614,57 +586,59 @@ fScrollEdit.Text:SetScript(
     end
 )
 fScrollEdit.SF:SetScrollChild(fScrollEdit.Text)
-fScrollEdit.Text:SetText(itemIDArrayToStr(Defaults.opt_delete_item_list))
--- fScrollEdit.Text:SetText("")
+-- fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_deleteItemList))
+fScrollEdit.Text:SetText("")
 
 -- 输入框的查询按钮
 local itemIDQueryButton2 = CreateFrame("Button", "itemIDQueryButton2_GlobalName", pFrame, "UIPanelButtonTemplate")
-local itemSellPriceOkButtonXPoint2 = itemSellEditBoxXPoint2 + 120
-itemIDQueryButton2:SetPoint("LEFT", itemSellEditBox2, itemSellPriceOkButtonXPoint2, 0)
+local itemDeletePriceOkButtonXPoint2 = itemDeleteEditBoxXPoint2 + 120
+itemIDQueryButton2:SetPoint("LEFT", itemDeleteEditBox2, itemDeletePriceOkButtonXPoint2, 0)
 itemIDQueryButton2:SetSize(110, 24) -- width, height
 itemIDQueryButton2:SetText("查询物品ID")
 itemIDQueryButton2.Name = "查询功能提示："
-itemIDQueryButton2.Description = "输入需要被查询物品的名称，查询物品ID，然后点击添加即可；\n注意：每次只能查询一个名称！"
+itemIDQueryButton2.Description =
+    "输入需要被查询物品的名称，查询物品ID，然后点击添加即可；\n注意：每次只能查询一个名称！\n另经过验证，API GetItemInfoInstant 只能查询背包与银行内已有物品的ID。"
 itemIDQueryButton2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
 itemIDQueryButton2:SetScript("OnLeave", GameTooltip_Hide)
 itemIDQueryButton2:SetScript(
     "OnClick",
     function()
+        -- print(tempItemListText)
         itemID = select(1, GetItemInfoInstant(tempItemListText))
         if itemID then
             local _, itemName, itemLink, _, _ = unpack(getItemInfoByName(itemID))
             -- print(itemName, itemLink)
             SendChatMessage(string.format("查询：%s，链接：%s，物品ID：%d", itemName, itemLink, itemID), "say")
-            itemSellEditBox2:SetText(itemID)
+            itemDeleteEditBox2:SetText(itemID)
         else
             message(string.format("未查询到“%s”的物品ID", tempItemListText))
-            itemSellEditBox2:SetAutoFocus()
+            itemDeleteEditBox2:SetAutoFocus()
         end
     end
 )
 
 -- 输入框的添加按钮
-local itemSellPriceOkButton2 =
-    CreateFrame("Button", "itemSellPriceOkButton2_GlobalName", pFrame, "UIPanelButtonTemplate")
-itemSellPriceOkButton2:SetPoint("LEFT", itemSellEditBox2, itemSellPriceOkButtonXPoint2 + 120, 0)
-itemSellPriceOkButton2:SetSize(50, 24) -- width, height
-itemSellPriceOkButton2:SetText("添加")
-itemSellPriceOkButton2.Name = "添加功能提示："
-itemSellPriceOkButton2.Description = "灰色物品会自动摧毁，不需要添加；\n这里要添加的是除了灰色物品以外的低价值物品！\n售卖NPC单价高于 5 银的不符合添加条件!"
-itemSellPriceOkButton2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
-itemSellPriceOkButton2:SetScript("OnLeave", GameTooltip_Hide)
-itemSellPriceOkButton2:SetScript(
+local itemDeletePriceOkButton2 =
+    CreateFrame("Button", "itemDeletePriceOkButton2_GlobalName", pFrame, "UIPanelButtonTemplate")
+itemDeletePriceOkButton2:SetPoint("LEFT", itemDeleteEditBox2, itemDeletePriceOkButtonXPoint2 + 120, 0)
+itemDeletePriceOkButton2:SetSize(50, 24) -- width, height
+itemDeletePriceOkButton2:SetText("添加")
+itemDeletePriceOkButton2.Name = "添加功能提示："
+itemDeletePriceOkButton2.Description = "灰色物品会自动摧毁，不需要添加；\n这里要添加的是除了灰色物品以外的低价值物品！\n售卖NPC单价高于 5 银的不符合添加条件!"
+itemDeletePriceOkButton2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
+itemDeletePriceOkButton2:SetScript("OnLeave", GameTooltip_Hide)
+itemDeletePriceOkButton2:SetScript(
     "OnClick",
     function()
         local unqualifiedItem, ItemIDArray = itemInputTextToItemIDArray(tempItemListText)
-        if MSR_DB.opt_delete_item_list then
-            local tempMergeArrayOk = tableMerge(ItemIDArray, MSR_DB.opt_delete_item_list)
-            MSR_DB.opt_delete_item_list = tempMergeArrayOk
+        if MSR_DB.opt_deleteItemList then
+            local tempMergeArrayOk = tableMerge(ItemIDArray, MSR_DB.opt_deleteItemList)
+            MSR_DB.opt_deleteItemList = tempMergeArrayOk
         else
-            MSR_DB.opt_delete_item_list = ItemIDArray
+            MSR_DB.opt_deleteItemList = ItemIDArray
         end
-        fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_delete_item_list))
-        itemSellEditBox2:SetText("") --重置为空
+        fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_deleteItemList))
+        itemDeleteEditBox2:SetText("") --重置为空
         local msgUnqualifiedItem = tableToString(unqualifiedItem)
         if msgUnqualifiedItem ~= "" then
             SendChatMessage(string.format("以下物品不符合被添加到摧毁清单的条件：%s", msgUnqualifiedItem), "say")
@@ -673,23 +647,23 @@ itemSellPriceOkButton2:SetScript(
 )
 
 -- 输入框的删除按钮
-local itemSellPriceCancelButton2 =
-    CreateFrame("Button", "itemSellPriceCancelButton2_GlobalName", pFrame, "UIPanelButtonTemplate")
-itemSellPriceCancelButton2:SetPoint("LEFT", itemSellEditBox2, itemSellPriceOkButtonXPoint2 + 120 + 60, 0)
-itemSellPriceCancelButton2:SetSize(50, 24) -- width, height
-itemSellPriceCancelButton2:SetText("删除")
-itemSellPriceCancelButton2.Name = "删除功能提示："
-itemSellPriceCancelButton2.Description = "在输入框中填入需要被删除的物品ID，然后点击“删除”按钮即可"
-itemSellPriceCancelButton2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
-itemSellPriceCancelButton2:SetScript("OnLeave", GameTooltip_Hide)
-itemSellPriceCancelButton2:SetScript(
+local itemDeletePriceCancelButton2 =
+    CreateFrame("Button", "itemDeletePriceCancelButton2_GlobalName", pFrame, "UIPanelButtonTemplate")
+itemDeletePriceCancelButton2:SetPoint("LEFT", itemDeleteEditBox2, itemDeletePriceOkButtonXPoint2 + 120 + 60, 0)
+itemDeletePriceCancelButton2:SetSize(50, 24) -- width, height
+itemDeletePriceCancelButton2:SetText("删除")
+itemDeletePriceCancelButton2.Name = "删除功能提示："
+itemDeletePriceCancelButton2.Description = "在输入框中填入需要被删除的物品ID，然后点击“删除”按钮即可"
+itemDeletePriceCancelButton2:SetScript("OnEnter", tooltipOfPanel_OnEnter)
+itemDeletePriceCancelButton2:SetScript("OnLeave", GameTooltip_Hide)
+itemDeletePriceCancelButton2:SetScript(
     "OnClick",
     function()
         local _, ItemIDArray = itemInputTextToItemIDArray(tempItemListText)
-        local tempNewItemListArray = tableDelete(MSR_DB.opt_delete_item_list, ItemIDArray)
-        MSR_DB.opt_delete_item_list = tempNewItemListArray
-        fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_delete_item_list))
-        itemSellEditBox2:SetText("") --重置为空
+        local tempNewItemListArray = tableDelete(MSR_DB.opt_deleteItemList, ItemIDArray)
+        MSR_DB.opt_deleteItemList = tempNewItemListArray
+        fScrollEdit.Text:SetText(itemIDArrayToStr(MSR_DB.opt_deleteItemList))
+        itemDeleteEditBox2:SetText("") --重置为空
     end
 )
 
