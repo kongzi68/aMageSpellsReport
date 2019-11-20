@@ -265,8 +265,8 @@ local function deleteBagItem()
     local allValue, oneValue = 0
     local canDeleteItemArray = getBagCanDeleteItem()
     if next(canDeleteItemArray) ~= nil then
-        SendChatMessage("当前被摧毁物品的最高价值限制为：" .. convertGoldValue(MSR_DB.opt_itemDeletePrice), "say")
-        SendChatMessage("开始摧毁低价值物品！", "say")
+        print("当前被摧毁物品的最高价值限制为：" .. convertGoldValue(MSR_DB.opt_itemDeletePrice))
+        print("开始摧毁低价值物品！")
         for _, value in pairs(canDeleteItemArray) do
             local bagID, slot, itemCount, itemLink, price = unpack(value)
             local locked, quality = select(3, GetContainerItemInfo(bagID, slot))
@@ -277,14 +277,14 @@ local function deleteBagItem()
                 -- ClearCursor()
                 oneValue = price * itemCount
                 allValue = allValue + oneValue
-                SendChatMessage(MSG_ITEMINFO:format(itemLink, itemCount, convertGoldValue(oneValue)), "say")
+                print(MSG_ITEMINFO:format(itemLink, itemCount, convertGoldValue(oneValue)))
             end
         end
-        SendChatMessage("摧毁低价值物品结束...", "say")
-        SendChatMessage("本次摧毁低价值物品的总价值: " .. convertGoldValue(allValue), "say")
+        print("摧毁低价值物品结束...")
+        print("本次摧毁低价值物品的总价值: " .. convertGoldValue(allValue))
     else
         if not MSR_DB.opt_autoDeleteJunk then
-            SendChatMessage("没有需要被摧毁的垃圾物品！", "say")
+            print("没有需要被摧毁的垃圾物品！")
         end
     end
 end
