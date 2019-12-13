@@ -1,8 +1,8 @@
-## Interface: 11302
+## Interface: 11303
 ## Title: aMageSpellsReport
 ## Notes: 法师变形术、法术反制、法力等消息发送到聊天窗口
 ## Author: colink
-## Version: 0.5
+## Version: 0.6
 ## SavedVariablesPerCharacter: MSR_DB
 
 baseMSR.lua

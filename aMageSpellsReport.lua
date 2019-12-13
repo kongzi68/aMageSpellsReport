@@ -77,7 +77,7 @@ function f:OnEvent(event, ...)
                     enemyGuidList[destGUID]["icon"] = gIcon
                 end
             end
-        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spellAuraBroken then
+        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spellAuraBroken and destGUID ~= nil then
             dSpellName, _, _, sSpellName = select(13, ...)
             self:mageSpellPolymorphBroken(sourceName, destGUID, destName, sSpellName, dSpellName)
         elseif subevent == "SPELL_INTERRUPT" then
