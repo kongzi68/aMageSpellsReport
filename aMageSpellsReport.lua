@@ -25,6 +25,19 @@ local function newSendChatMessage(msg)
     end
 end
 
+-- 判断 table 中的某 key 是否存在
+local function keyInTable(tbl, key)
+    if tbl == nil then
+        return false
+    end
+    for k, v in pairs(tbl) do
+        if k == key then
+            return true
+        end
+    end
+    return false
+end
+
 -- 处理战斗日志信息，进行消息通报
 local f = CreateFrame("Frame")
 f:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
@@ -70,14 +83,14 @@ function f:OnEvent(event, ...)
                 gIcon = self:targetMark()
             end
         elseif subevent == "SPELL_CAST_SUCCESS" then
-            if spellName == checkSpellName then
+            if spellName == checkSpellName and destGUID ~= nil and sourceGUID ~= nil then
                 -- 记录战斗开始后，日志中每个目标的 debuff-变形术 最后的施放者 GUID，用于破控提醒
                 enemyGuidList[destGUID] = {["sourceGUID"] = sourceGUID}
                 if sourceGUID == playerGUID then
                     enemyGuidList[destGUID]["icon"] = gIcon
                 end
             end
-        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spellAuraBroken and destGUID ~= nil then
+        elseif subevent == "SPELL_AURA_BROKEN_SPELL" and MSR_DB.opt_spellAuraBroken then
             dSpellName, _, _, sSpellName = select(13, ...)
             self:mageSpellPolymorphBroken(sourceName, destGUID, destName, sSpellName, dSpellName)
         elseif subevent == "SPELL_INTERRUPT" then
@@ -134,13 +147,15 @@ function f:mageSpellPolymorphBroken(...)
     local sourceName, destGUID, destName, sSpellName, dSpellName = ...
     local MSG_SPELLNAME1 = "%s→%s 破控 >>> {rt%d}%s <<< %s→%s!!!"
     local MSG_SPELLNAME11 = "%s→%s 破控 >>> %s <<< %s→%s!!!"
-    local sourceGUID = enemyGuidList[destGUID]["sourceGUID"]
-    local icon = enemyGuidList[destGUID]["icon"]
-    if sourceGUID == playerGUID and dSpellName == checkSpellName then
-        if icon then
-            newSendChatMessage(MSG_SPELLNAME1:format(sourceName, sSpellName, icon, destName, playerName, dSpellName))
-        else
-            newSendChatMessage(MSG_SPELLNAME11:format(sourceName, sSpellName, destName, playerName, dSpellName))
+    if keyInTable(enemyGuidList, destGUID) then
+        local sourceGUID = enemyGuidList[destGUID]["sourceGUID"]
+        local icon = enemyGuidList[destGUID]["icon"]
+        if sourceGUID == playerGUID and dSpellName == checkSpellName then
+            if icon then
+                newSendChatMessage(MSG_SPELLNAME1:format(sourceName, sSpellName, icon, destName, playerName, dSpellName))
+            else
+                newSendChatMessage(MSG_SPELLNAME11:format(sourceName, sSpellName, destName, playerName, dSpellName))
+            end
         end
     end
 end
